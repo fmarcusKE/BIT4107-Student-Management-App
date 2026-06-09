@@ -15,12 +15,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.launch
 
 data class Student(val id: String, val name: String, val email: String = "", val course: String = "")
 
@@ -30,6 +33,7 @@ sealed class Screen {
     object Register : Screen()
     object Dashboard : Screen()
     object Profile : Screen()
+    object Settings : Screen()
 }
 
 class MainActivity : ComponentActivity() {
@@ -68,9 +72,17 @@ fun StudentManagementApp() {
                     course = course
                 ))
             },
+            onLogout = { currentScreen = Screen.Login },
+            onNavigate = { currentScreen = it }
+        )
+        is Screen.Profile -> ProfileScreen(
+            onNavigate = { currentScreen = it },
             onLogout = { currentScreen = Screen.Login }
         )
-        is Screen.Profile -> ProfileScreen(onBack = { currentScreen = Screen.Dashboard })
+        is Screen.Settings -> SettingsScreen(
+            onNavigate = { currentScreen = it },
+            onLogout = { currentScreen = Screen.Login }
+        )
     }
 }
 
@@ -80,67 +92,98 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onRegisterClick: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF4A69E2)) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(Icons.Default.School, contentDescription = null, modifier = Modifier.size(100.dp), tint = Color.White)
-            Spacer(modifier = Modifier.height(24.dp))
-            Text("Welcome Back", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Text("Sign in to continue", color = Color.White.copy(alpha = 0.8f))
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Email") },
-                leadingIcon = { Icon(Icons.Default.Email, null) },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Password") },
-                leadingIcon = { Icon(Icons.Default.Lock, null) },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
-            )
-
-            if (error.isNotEmpty()) {
-                Text(error, color = Color.Yellow, modifier = Modifier.padding(top = 8.dp))
-            }
-
-            Spacer(modifier = Modifier.height(40.dp))
-
-            Button(
-                onClick = {
-                    if (email.isNotBlank() && password.isNotBlank()) {
-                        onLoginSuccess()
-                    } else {
-                        error = "Please fill all fields"
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(12.dp)
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.primary) {
+        Box(contentAlignment = Alignment.Center) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                Text("LOGIN", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.Default.School,
+                        contentDescription = null,
+                        modifier = Modifier.size(80.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Welcome Back", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("Sign in to your account", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
 
-            TextButton(onClick = onRegisterClick) {
-                Text("Create New Account", color = Color.White)
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { newValue -> email = newValue; error = "" },
+                        label = { Text("Email") },
+                        leadingIcon = { Icon(Icons.Default.Email, null) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        isError = error.isNotEmpty()
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { newValue -> password = newValue; error = "" },
+                        label = { Text("Password") },
+                        leadingIcon = { Icon(Icons.Default.Lock, null) },
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        isError = error.isNotEmpty()
+                    )
+
+                    if (error.isNotEmpty()) {
+                        Text(
+                            error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    Button(
+                        onClick = {
+                            if (email.isBlank() || password.isBlank()) {
+                                error = "Please fill in all fields"
+                            } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                                error = "Please enter a valid email"
+                            } else {
+                                isLoading = true
+                                // Simulate network delay
+                                onLoginSuccess()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = !isLoading
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                        } else {
+                            Text("LOGIN", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    TextButton(onClick = onRegisterClick) {
+                        Text("Don't have an account? Register")
+                    }
+                }
             }
         }
     }
@@ -152,6 +195,7 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf("") }
 
     Scaffold { padding ->
         Column(
@@ -162,20 +206,61 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text("Create Account", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text("Create Account", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Join our student community", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Full Name") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(
+                value = name,
+                onValueChange = { newValue -> name = newValue },
+                label = { Text("Full Name") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                leadingIcon = { Icon(Icons.Default.Person, null) }
+            )
             Spacer(modifier = Modifier.height(16.dp))
-            OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(
+                value = email,
+                onValueChange = { newValue -> email = newValue },
+                label = { Text("Email") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                leadingIcon = { Icon(Icons.Default.Email, null) }
+            )
             Spacer(modifier = Modifier.height(16.dp))
-            OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Password") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(
+                value = password,
+                onValueChange = { newValue -> password = newValue },
+                label = { Text("Password") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                leadingIcon = { Icon(Icons.Default.Lock, null) },
+                visualTransformation = PasswordVisualTransformation()
+            )
+
+            if (error.isNotEmpty()) {
+                Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
+            }
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            Button(onClick = { if (name.isNotBlank() && email.isNotBlank()) onRegisterSuccess() }, modifier = Modifier.fillMaxWidth()) {
-                Text("REGISTER")
+            Button(
+                onClick = {
+                    if (name.isNotBlank() && email.isNotBlank() && password.length >= 6) {
+                        onRegisterSuccess()
+                    } else if (password.length < 6) {
+                        error = "Password must be at least 6 characters"
+                    } else {
+                        error = "Please fill all fields"
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("REGISTER", fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -187,98 +272,284 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit) {
 fun DashboardScreen(
     students: MutableList<Student>,
     onAddStudent: (String, String, String) -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigate: (Screen) -> Unit
 ) {
-    var showAddDialog by remember { mutableStateOf(false) }
-    var newName by remember { mutableStateOf("") }
-    var newEmail by remember { mutableStateOf("") }
-    var newCourse by remember { mutableStateOf("") }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("EduManage Dashboard") },
-                actions = {
-                    IconButton(onClick = onLogout) { Icon(Icons.AutoMirrored.Filled.Logout, "Logout") }
-                }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Add Student")
-            }
-        }
-    ) { padding ->
-        Column(modifier = Modifier.padding(padding).padding(16.dp)) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    "Total Students: ${students.size}",
-                    modifier = Modifier.padding(16.dp),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                NavigationDrawer(
+                    currentScreen = Screen.Dashboard,
+                    onScreenSelected = { screen ->
+                        scope.launch {
+                            drawerState.close()
+                            onNavigate(screen)
+                        }
+                    },
+                    onLogout = onLogout
                 )
             }
+        }
+    ) {
+        var showAddDialog by remember { mutableStateOf(false) }
+        var newName by remember { mutableStateOf("") }
+        var newEmail by remember { mutableStateOf("") }
+        var newCourse by remember { mutableStateOf("") }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            LazyColumn {
-                items(students) { student ->
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                        ListItem(
-                            headlineContent = { Text(student.name) },
-                            supportingContent = { Text("${student.email} • ${student.course}") }
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("EduManage Dashboard") },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, "Menu")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = onLogout) { Icon(Icons.AutoMirrored.Filled.Logout, "Logout") }
+                    }
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(onClick = { showAddDialog = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Student")
+                }
+            }
+        ) { padding ->
+            Column(modifier = Modifier.padding(padding).padding(16.dp)) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "Welcome Back!",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "You have ${students.size} students enrolled.",
+                            style = MaterialTheme.typography.bodyMedium
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text(
+                    "Recent Students",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(items = students) { student ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            ListItem(
+                                headlineContent = { Text(student.name, fontWeight = FontWeight.Medium) },
+                                supportingContent = { Text("${student.email} • ${student.course}") },
+                                leadingContent = {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.secondaryContainer
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Person,
+                                            null,
+                                            modifier = Modifier.padding(8.dp),
+                                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
-    }
 
-    if (showAddDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddDialog = false },
-            title = { Text("Add New Student") },
-            text = {
-                Column {
-                    TextField(value = newName, onValueChange = { newName = it }, label = { Text("Name") })
-                    TextField(value = newEmail, onValueChange = { newEmail = it }, label = { Text("Email") })
-                    TextField(value = newCourse, onValueChange = { newCourse = it }, label = { Text("Course") })
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    if (newName.isNotBlank()) {
-                        onAddStudent(newName, newEmail, newCourse)
-                        newName = ""; newEmail = ""; newCourse = ""
-                        showAddDialog = false
+        if (showAddDialog) {
+            AlertDialog(
+                onDismissRequest = { showAddDialog = false },
+                title = { Text("Add New Student") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(value = newName, onValueChange = { newValue -> newName = newValue }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = newEmail, onValueChange = { newValue -> newEmail = newValue }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = newCourse, onValueChange = { newValue -> newCourse = newValue }, label = { Text("Course") }, modifier = Modifier.fillMaxWidth())
                     }
-                }) { Text("Add") }
-            }
-        )
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        if (newName.isNotBlank()) {
+                            onAddStudent(newName, newEmail, newCourse)
+                            newName = ""; newEmail = ""; newCourse = ""
+                            showAddDialog = false
+                        }
+                    }) { Text("Add") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAddDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
     }
 }
 
 // ====================== PROFILE ======================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(onBack: () -> Unit) {
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("My Profile") }, navigationIcon = {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
-            })
+fun ProfileScreen(onNavigate: (Screen) -> Unit, onLogout: () -> Unit) {
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                NavigationDrawer(
+                    currentScreen = Screen.Profile,
+                    onScreenSelected = { screen ->
+                        scope.launch {
+                            drawerState.close()
+                            onNavigate(screen)
+                        }
+                    },
+                    onLogout = onLogout
+                )
+            }
         }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(modifier = Modifier.height(50.dp))
-            Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(120.dp))
-            Text("Marcus Kipchoge", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Text("BIT4107 Student", color = Color.Gray)
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("My Profile") },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, "Menu")
+                        }
+                    }
+                )
+            }
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(60.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(120.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .padding(20.dp)
+                            .fillMaxSize(),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("Marcus Felixo", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("BIT4107 Student", style = MaterialTheme.typography.bodyLarge, color = Color.Gray)
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ProfileInfoRow(Icons.Default.Email, "Email", "marcus.k@example.com")
+                        ProfileInfoRow(Icons.Default.Phone, "Phone", "+254 713682055")
+                        ProfileInfoRow(Icons.Default.LocationOn, "Location", "Nairobi, Kenya")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ProfileInfoRow(icon: ImageVector, label: String, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.width(16.dp))
+        Column {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+            Text(value, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+}
+
+// ====================== SETTINGS ======================
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(onNavigate: (Screen) -> Unit, onLogout: () -> Unit) {
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                NavigationDrawer(
+                    currentScreen = Screen.Settings,
+                    onScreenSelected = { screen ->
+                        scope.launch {
+                            drawerState.close()
+                            onNavigate(screen)
+                        }
+                    },
+                    onLogout = onLogout
+                )
+            }
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Settings") },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, "Menu")
+                        }
+                    }
+                )
+            }
+        ) { padding ->
+            Column(modifier = Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Preferences", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                ListItem(
+                    headlineContent = { Text("Dark Mode") },
+                    trailingContent = { Switch(checked = false, onCheckedChange = {}) }
+                )
+                ListItem(
+                    headlineContent = { Text("Notifications") },
+                    trailingContent = { Switch(checked = true, onCheckedChange = {}) }
+                )
+                HorizontalDivider()
+                Text("Account", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                ListItem(
+                    headlineContent = { Text("Change Password") },
+                    leadingContent = { Icon(Icons.Default.Lock, null) }
+                )
+                ListItem(
+                    headlineContent = { Text("Sign Out", color = Color.Red) },
+                    leadingContent = { Icon(Icons.AutoMirrored.Filled.Logout, null, tint = Color.Red) },
+                    modifier = Modifier.clickable { onLogout() }
+                )
+            }
         }
     }
 }

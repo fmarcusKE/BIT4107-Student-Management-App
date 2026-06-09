@@ -5,6 +5,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -22,24 +24,26 @@ fun SplashScreen(onTimeout: () -> Unit) {
         onTimeout()
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Default.School,
-                contentDescription = null,
-                modifier = Modifier.size(120.dp),
-                tint = Color.White
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                "EduManage",
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.primary) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    Icons.Default.School,
+                    contentDescription = null,
+                    modifier = Modifier.size(120.dp),
+                    tint = Color.White
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "EduManage",
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
         }
     }
 }
