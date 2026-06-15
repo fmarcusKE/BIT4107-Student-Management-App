@@ -2,7 +2,7 @@ package com.example.myapplication
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
@@ -31,17 +31,23 @@ fun SplashScreen(onTimeout: () -> Unit) {
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
-                    Icons.Default.School,
+                    Icons.Default.AutoAwesome,
                     contentDescription = null,
                     modifier = Modifier.size(120.dp),
                     tint = Color.White
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    "EduManage",
-                    fontSize = 40.sp,
+                    "Edu Pilot",
+                    fontSize = 44.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
+                )
+                Text(
+                    "AI-POWERED ASSISTANT",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.8f)
                 )
             }
         }
