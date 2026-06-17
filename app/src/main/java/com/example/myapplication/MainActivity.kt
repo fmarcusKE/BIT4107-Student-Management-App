@@ -26,6 +26,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
 
+data class StudyNote(
+    val id: String,
+    val title: String,
+    val content: String,
+    val category: String = "General"
+)
+
 sealed class Screen {
     object Splash : Screen()
     object Login : Screen()
@@ -38,6 +45,9 @@ sealed class Screen {
     object CareerAssistant : Screen()
     object Profile : Screen()
     object Settings : Screen()
+    object StudyNotes : Screen() // For Entity Records (CRUD)
+    object ApiRecords : Screen() // For API Consumer
+    object AcademicResults : Screen() // For Student Results (Network Ops)
 }
 
 class MainActivity : ComponentActivity() {
@@ -55,6 +65,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun EduPilotApp() {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Splash) }
+    val studyNotes = remember { mutableStateListOf<StudyNote>() }
 
     when (currentScreen) {
         is Screen.Splash -> SplashScreen(onTimeout = { currentScreen = Screen.Login })
@@ -97,16 +108,41 @@ fun EduPilotApp() {
             onNavigate = { currentScreen = it },
             onLogout = { currentScreen = Screen.Login }
         )
+        is Screen.StudyNotes -> StudyNotesScreen(
+            notes = studyNotes,
+            onAddNote = { title: String, content: String ->
+                studyNotes.add(StudyNote(System.currentTimeMillis().toString(), title, content))
+            },
+            onUpdateNote = { id: String, title: String, content: String ->
+                val index = studyNotes.indexOfFirst { it.id == id }
+                if (index != -1) {
+                    studyNotes[index] = studyNotes[index].copy(title = title, content = content)
+                }
+            },
+            onDeleteNote = { note: StudyNote -> studyNotes.remove(note) },
+            onNavigate = { screen: Screen -> currentScreen = screen },
+            onLogout = { currentScreen = Screen.Login }
+        )
+        is Screen.ApiRecords -> ApiRecordsScreen(
+            onNavigate = { screen: Screen -> currentScreen = screen },
+            onLogout = { currentScreen = Screen.Login }
+        )
+        is Screen.AcademicResults -> AcademicResultsScreen(
+            onNavigate = { screen: Screen -> currentScreen = screen },
+            onLogout = { currentScreen = Screen.Login }
+        )
     }
 }
 
 // ====================== LOGIN SCREEN ======================
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit, onRegisterClick: () -> Unit) {
+fun LoginScreen(
+    onLoginSuccess: () -> Unit,
+    onRegisterClick: () -> Unit,
+    viewModel: AuthViewModel = viewModel()
+) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.primary) {
         Box(contentAlignment = Alignment.Center) {
@@ -135,32 +171,31 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onRegisterClick: () -> Unit) {
 
                     OutlinedTextField(
                         value = email,
-                        onValueChange = { newValue -> email = newValue; error = "" },
+                        onValueChange = { newValue -> email = newValue },
                         label = { Text("Email") },
                         leadingIcon = { Icon(Icons.Default.Email, null) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        isError = error.isNotEmpty()
+                        singleLine = true
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
                     OutlinedTextField(
                         value = password,
-                        onValueChange = { newValue -> password = newValue; error = "" },
+                        onValueChange = { newValue -> password = newValue },
                         label = { Text("Password") },
                         leadingIcon = { Icon(Icons.Default.Lock, null) },
                         visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        isError = error.isNotEmpty()
+                        singleLine = true
                     )
 
-                    if (error.isNotEmpty()) {
+                    val authState = viewModel.authUiState
+                    if (authState is AuthUiState.Error) {
                         Text(
-                            error,
+                            authState.message,
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.labelSmall,
                             modifier = Modifier.padding(top = 8.dp)
@@ -171,20 +206,17 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onRegisterClick: () -> Unit) {
 
                     Button(
                         onClick = {
-                            if (email.isBlank() || password.isBlank()) {
-                                error = "Please fill in all fields"
-                            } else {
-                                isLoading = true
-                                onLoginSuccess()
+                            viewModel.login(email, password) { success ->
+                                if (success) onLoginSuccess()
                             }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
                         shape = RoundedCornerShape(12.dp),
-                        enabled = !isLoading
+                        enabled = authState !is AuthUiState.Loading
                     ) {
-                        if (isLoading) {
+                        if (authState is AuthUiState.Loading) {
                             CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
                         } else {
                             Text("LOGIN", fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -352,7 +384,17 @@ fun DashboardScreen(onNavigate: (Screen) -> Unit, onLogout: () -> Unit) {
                 }
 
                 item {
-                    ModuleCard(Modifier.fillMaxWidth(), "Career Assistant", Icons.Default.Work, "AI career guidance") { onNavigate(Screen.CareerAssistant) }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        ModuleCard(Modifier.weight(1f), "Study Planner", Icons.Default.EditNote, "Manage study tasks (CRUD)") { onNavigate(Screen.StudyNotes) }
+                        ModuleCard(Modifier.weight(1f), "Academic Results", Icons.Default.Assessment, "View & Download Transcript") { onNavigate(Screen.AcademicResults) }
+                    }
+                }
+
+                item {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        ModuleCard(Modifier.weight(1f), "Global Resources", Icons.Default.Public, "Fetched from REST API") { onNavigate(Screen.ApiRecords) }
+                        ModuleCard(Modifier.weight(1f), "Career Assistant", Icons.Default.Work, "AI career guidance") { onNavigate(Screen.CareerAssistant) }
+                    }
                 }
             }
         }
@@ -509,6 +551,235 @@ fun SettingsScreen(onNavigate: (Screen) -> Unit, onLogout: () -> Unit) {
                 HorizontalDivider()
                 Text("Account", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                 ListItem(headlineContent = { Text("Sign Out", color = Color.Red) }, leadingContent = { Icon(Icons.AutoMirrored.Filled.Logout, null, tint = Color.Red) }, modifier = Modifier.clickable { onLogout() })
+            }
+        }
+    }
+}
+
+// ====================== STUDY NOTES (ENTITY CRUD) ======================
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StudyNotesScreen(
+    notes: List<StudyNote>,
+    onAddNote: (String, String) -> Unit,
+    onUpdateNote: (String, String, String) -> Unit,
+    onDeleteNote: (StudyNote) -> Unit,
+    onNavigate: (Screen) -> Unit,
+    onLogout: () -> Unit
+) {
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    var showAddDialog by remember { mutableStateOf(false) }
+    var editingNote by remember { mutableStateOf<StudyNote?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredNotes = notes.filter { 
+        it.title.contains(searchQuery, ignoreCase = true) || it.content.contains(searchQuery, ignoreCase = true)
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                NavigationDrawer(currentScreen = Screen.StudyNotes, onScreenSelected = { s -> scope.launch { drawerState.close(); onNavigate(s) } }, onLogout = onLogout)
+            }
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Study Planner") },
+                    navigationIcon = { IconButton(onClick = { scope.launch { drawerState.open() } }) { Icon(Icons.Default.Menu, "Menu") } }
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(onClick = { showAddDialog = true }) { Icon(Icons.Default.Add, "Add Note") }
+            }
+        ) { padding ->
+            Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Search Notes") },
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    shape = RoundedCornerShape(12.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(filteredNotes) { note ->
+                        Card(modifier = Modifier.fillMaxWidth().clickable { editingNote = note }) {
+                            ListItem(
+                                headlineContent = { Text(note.title, fontWeight = FontWeight.Bold) },
+                                supportingContent = { Text(note.content, maxLines = 2) },
+                                trailingContent = {
+                                    IconButton(onClick = { onDeleteNote(note) }) {
+                                        Icon(Icons.Default.Delete, null, tint = Color.Red)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showAddDialog) {
+            NoteDialog(onDismiss = { showAddDialog = false }, onConfirm = { t, c -> onAddNote(t, c) })
+        }
+        if (editingNote != null) {
+            NoteDialog(
+                initialTitle = editingNote!!.title,
+                initialContent = editingNote!!.content,
+                onDismiss = { editingNote = null },
+                onConfirm = { t, c -> onUpdateNote(editingNote!!.id, t, c) }
+            )
+        }
+    }
+}
+
+@Composable
+fun NoteDialog(initialTitle: String = "", initialContent: String = "", onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
+    var title by remember { mutableStateOf(initialTitle) }
+    var content by remember { mutableStateOf(initialContent) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initialTitle.isEmpty()) "Add Note" else "Edit Note") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") })
+                OutlinedTextField(value = content, onValueChange = { content = it }, label = { Text("Content") }, modifier = Modifier.height(120.dp))
+            }
+        },
+        confirmButton = { Button(onClick = { onConfirm(title, content); onDismiss() }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+// ====================== API RECORDS (API CONSUMER) ======================
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ApiRecordsScreen(onNavigate: (Screen) -> Unit, onLogout: () -> Unit, viewModel: PostViewModel = viewModel()) {
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                NavigationDrawer(currentScreen = Screen.ApiRecords, onScreenSelected = { s -> scope.launch { drawerState.close(); onNavigate(s) } }, onLogout = onLogout)
+            }
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Global Shared Resources") },
+                    navigationIcon = { IconButton(onClick = { scope.launch { drawerState.open() } }) { Icon(Icons.Default.Menu, "Menu") } }
+                )
+            }
+        ) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                when (val state = viewModel.postUiState) {
+                    is PostUiState.Loading -> CircularProgressIndicator()
+                    is PostUiState.Error -> Text("Failed to load records.")
+                    is PostUiState.Success -> {
+                        LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(state.posts) { post ->
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text(post.title, fontWeight = FontWeight.Bold)
+                                        Text(post.body, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ====================== ACADEMIC RESULTS (NETWORK OPS) ======================
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AcademicResultsScreen(
+    onNavigate: (Screen) -> Unit,
+    onLogout: () -> Unit,
+    viewModel: ResultViewModel = viewModel()
+) {
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                NavigationDrawer(
+                    currentScreen = Screen.AcademicResults,
+                    onScreenSelected = { s -> scope.launch { drawerState.close(); onNavigate(s) } },
+                    onLogout = onLogout
+                )
+            }
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Academic Performance") },
+                    navigationIcon = { IconButton(onClick = { scope.launch { drawerState.open() } }) { Icon(Icons.Default.Menu, "Menu") } },
+                    actions = {
+                        IconButton(onClick = { viewModel.downloadTranscript() }) {
+                            Icon(Icons.Default.Download, "Download Transcript")
+                        }
+                    }
+                )
+            }
+        ) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                when (val state = viewModel.resultUiState) {
+                    is ResultUiState.Loading -> CircularProgressIndicator()
+                    is ResultUiState.Error -> Text("Failed to retrieve results.")
+                    is ResultUiState.Success -> {
+                        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text("Official Transcript Available", fontWeight = FontWeight.Bold)
+                                    Text("You can download your full transcript using the icon above.", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(state.results) { result ->
+                                    Card(modifier = Modifier.fillMaxWidth()) {
+                                        ListItem(
+                                            headlineContent = { Text(result.subject, fontWeight = FontWeight.Bold) },
+                                            supportingContent = { Text(result.semester) },
+                                            trailingContent = {
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = MaterialTheme.colorScheme.primaryContainer
+                                                ) {
+                                                    Text(
+                                                        text = "${result.score}% (${result.grade})",
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

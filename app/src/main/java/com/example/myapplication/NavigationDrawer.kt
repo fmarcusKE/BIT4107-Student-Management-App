@@ -62,6 +62,27 @@ fun NavigationDrawer(
         )
 
         NavigationDrawerItem(
+            label = { Text("Study Planner (CRUD)") },
+            icon = { Icon(Icons.Default.EditNote, null) },
+            selected = currentScreen is Screen.StudyNotes,
+            onClick = { onScreenSelected(Screen.StudyNotes) }
+        )
+
+        NavigationDrawerItem(
+            label = { Text("Global Resources (API)") },
+            icon = { Icon(Icons.Default.Public, null) },
+            selected = currentScreen is Screen.ApiRecords,
+            onClick = { onScreenSelected(Screen.ApiRecords) }
+        )
+
+        NavigationDrawerItem(
+            label = { Text("Academic Results") },
+            icon = { Icon(Icons.Default.Assessment, null) },
+            selected = currentScreen is Screen.AcademicResults,
+            onClick = { onScreenSelected(Screen.AcademicResults) }
+        )
+
+        NavigationDrawerItem(
             label = { Text("Career Assistant") },
             icon = { Icon(Icons.Default.Work, null) },
             selected = currentScreen is Screen.CareerAssistant,
