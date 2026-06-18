@@ -83,6 +83,13 @@ fun NavigationDrawer(
         )
 
         NavigationDrawerItem(
+            label = { Text("Attendance") },
+            icon = { Icon(Icons.Default.Checklist, null) },
+            selected = currentScreen is Screen.Attendance,
+            onClick = { onScreenSelected(Screen.Attendance) }
+        )
+
+        NavigationDrawerItem(
             label = { Text("Career Assistant") },
             icon = { Icon(Icons.Default.Work, null) },
             selected = currentScreen is Screen.CareerAssistant,

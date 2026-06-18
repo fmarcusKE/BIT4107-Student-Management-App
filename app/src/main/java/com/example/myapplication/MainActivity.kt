@@ -33,6 +33,18 @@ data class StudyNote(
     val category: String = "General"
 )
 
+data class Student(
+    val id: String,
+    val name: String,
+    val studentId: String
+)
+
+data class AttendanceRecord(
+    val studentId: String,
+    val date: String,
+    val isPresent: Boolean
+)
+
 sealed class Screen {
     object Splash : Screen()
     object Login : Screen()
@@ -48,6 +60,7 @@ sealed class Screen {
     object StudyNotes : Screen() // For Entity Records (CRUD)
     object ApiRecords : Screen() // For API Consumer
     object AcademicResults : Screen() // For Student Results (Network Ops)
+    object Attendance : Screen() // For Attendance Management
 }
 
 class MainActivity : ComponentActivity() {
@@ -66,6 +79,12 @@ class MainActivity : ComponentActivity() {
 fun EduPilotApp() {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Splash) }
     val studyNotes = remember { mutableStateListOf<StudyNote>() }
+    val students = remember { mutableStateListOf<Student>(
+        Student("1", "John Doe", "S001"),
+        Student("2", "Jane Smith", "S002"),
+        Student("3", "Alex Johnson", "S003")
+    ) }
+    val attendanceRecords = remember { mutableStateListOf<AttendanceRecord>() }
 
     when (currentScreen) {
         is Screen.Splash -> SplashScreen(onTimeout = { currentScreen = Screen.Login })
@@ -128,6 +147,17 @@ fun EduPilotApp() {
             onLogout = { currentScreen = Screen.Login }
         )
         is Screen.AcademicResults -> AcademicResultsScreen(
+            onNavigate = { screen: Screen -> currentScreen = screen },
+            onLogout = { currentScreen = Screen.Login }
+        )
+        is Screen.Attendance -> AttendanceScreen(
+            students = students,
+            records = attendanceRecords,
+            onAddStudent = { name: String, sid: String -> students.add(Student(System.currentTimeMillis().toString(), name, sid)) },
+            onRecordAttendance = { sid: String, date: String, present: Boolean ->
+                attendanceRecords.removeAll { it.studentId == sid && it.date == date }
+                attendanceRecords.add(AttendanceRecord(sid, date, present))
+            },
             onNavigate = { screen: Screen -> currentScreen = screen },
             onLogout = { currentScreen = Screen.Login }
         )
@@ -393,7 +423,14 @@ fun DashboardScreen(onNavigate: (Screen) -> Unit, onLogout: () -> Unit) {
                 item {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         ModuleCard(Modifier.weight(1f), "Global Resources", Icons.Default.Public, "Fetched from REST API") { onNavigate(Screen.ApiRecords) }
+                        ModuleCard(Modifier.weight(1f), "Attendance", Icons.Default.Checklist, "Manage student records") { onNavigate(Screen.Attendance) }
+                    }
+                }
+
+                item {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         ModuleCard(Modifier.weight(1f), "Career Assistant", Icons.Default.Work, "AI career guidance") { onNavigate(Screen.CareerAssistant) }
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -783,4 +820,99 @@ fun AcademicResultsScreen(
             }
         }
     }
+}
+
+// ====================== ATTENDANCE MANAGEMENT ======================
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AttendanceScreen(
+    students: List<Student>,
+    records: List<AttendanceRecord>,
+    onAddStudent: (String, String) -> Unit,
+    onRecordAttendance: (String, String, Boolean) -> Unit,
+    onNavigate: (Screen) -> Unit,
+    onLogout: () -> Unit
+) {
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    var showAddStudentDialog by remember { mutableStateOf(false) }
+    var selectedDate by remember { mutableStateOf("2023-10-27") }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                NavigationDrawer(currentScreen = Screen.Attendance, onScreenSelected = { s -> scope.launch { drawerState.close(); onNavigate(s) } }, onLogout = onLogout)
+            }
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Attendance Management") },
+                    navigationIcon = { IconButton(onClick = { scope.launch { drawerState.open() } }) { Icon(Icons.Default.Menu, "Menu") } }
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(onClick = { showAddStudentDialog = true }) { Icon(Icons.Default.PersonAdd, "Add Student") }
+            }
+        ) { padding ->
+            Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+                Text("Daily Attendance - $selectedDate", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                    items(students) { student ->
+                        val isPresent = records.any { it.studentId == student.studentId && it.date == selectedDate && it.isPresent }
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(student.name, fontWeight = FontWeight.Bold)
+                                    Text("ID: ${student.studentId}", style = MaterialTheme.typography.bodySmall)
+                                }
+                                Switch(
+                                    checked = isPresent,
+                                    onCheckedChange = { onRecordAttendance(student.studentId, selectedDate, it) }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Attendance Report Summary", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Card(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                    val presentCount = records.filter { it.date == selectedDate && it.isPresent }.size
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Total Students: ${students.size}")
+                        Text("Present: $presentCount")
+                        Text("Absent: ${students.size - presentCount}")
+                    }
+                }
+            }
+        }
+
+        if (showAddStudentDialog) {
+            AddStudentDialog(onDismiss = { showAddStudentDialog = false }, onConfirm = { n, sid -> onAddStudent(n, sid) })
+        }
+    }
+}
+
+@Composable
+fun AddStudentDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var studentId by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Register Student") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Full Name") })
+                OutlinedTextField(value = studentId, onValueChange = { studentId = it }, label = { Text("Student ID") })
+            }
+        },
+        confirmButton = { Button(onClick = { onConfirm(name, studentId); onDismiss() }) { Text("Register") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
