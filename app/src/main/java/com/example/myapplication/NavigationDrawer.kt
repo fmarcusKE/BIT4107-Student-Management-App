@@ -95,6 +95,13 @@ fun NavigationDrawer(
             selected = currentScreen is Screen.CareerAssistant,
             onClick = { onScreenSelected(Screen.CareerAssistant) }
         )
+
+        NavigationDrawerItem(
+            label = { Text("Interaction Lab (Week 8)") },
+            icon = { Icon(Icons.Default.TouchApp, null) },
+            selected = currentScreen is Screen.InteractionLab,
+            onClick = { onScreenSelected(Screen.InteractionLab) }
+        )
         
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 

@@ -61,6 +61,7 @@ sealed class Screen {
     object ApiRecords : Screen() // For API Consumer
     object AcademicResults : Screen() // For Student Results (Network Ops)
     object Attendance : Screen() // For Attendance Management
+    object InteractionLab : Screen() // Week 8 Task: Input & Gestures
 }
 
 class MainActivity : ComponentActivity() {
@@ -158,6 +159,10 @@ fun EduPilotApp() {
                 attendanceRecords.removeAll { it.studentId == sid && it.date == date }
                 attendanceRecords.add(AttendanceRecord(sid, date, present))
             },
+            onNavigate = { screen: Screen -> currentScreen = screen },
+            onLogout = { currentScreen = Screen.Login }
+        )
+        is Screen.InteractionLab -> InteractionLabScreen(
             onNavigate = { screen: Screen -> currentScreen = screen },
             onLogout = { currentScreen = Screen.Login }
         )
@@ -430,7 +435,7 @@ fun DashboardScreen(onNavigate: (Screen) -> Unit, onLogout: () -> Unit) {
                 item {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         ModuleCard(Modifier.weight(1f), "Career Assistant", Icons.Default.Work, "AI career guidance") { onNavigate(Screen.CareerAssistant) }
-                        Spacer(modifier = Modifier.weight(1f))
+                        ModuleCard(Modifier.weight(1f), "Interaction Lab", Icons.Default.TouchApp, "Input & Gestures (Week 8)") { onNavigate(Screen.InteractionLab) }
                     }
                 }
             }
